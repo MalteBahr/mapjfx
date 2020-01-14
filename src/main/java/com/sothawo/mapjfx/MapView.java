@@ -21,12 +21,14 @@ import com.sothawo.mapjfx.event.MapViewEvent;
 import com.sothawo.mapjfx.event.MarkerEvent;
 import com.sothawo.mapjfx.offline.OfflineCache;
 import javafx.application.Platform;
+import javafx.beans.InvalidationListener;
 import javafx.beans.property.ReadOnlyBooleanProperty;
 import javafx.beans.property.ReadOnlyBooleanWrapper;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.value.ChangeListener;
+import javafx.collections.ListChangeListener;
 import javafx.concurrent.Worker;
 import javafx.event.EventType;
 import javafx.scene.layout.Background;
@@ -53,16 +55,8 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -515,11 +509,15 @@ public final class MapView extends Region implements AutoCloseable {
                         fillColor.getOpacity());
                     jsCoordinateLine.call("setWidth", coordinateLine.getWidth());
                     jsCoordinateLine.call("setClosed", coordinateLine.isClosed());
-                    jsCoordinateLine.call("seal");
-
+                    jsCoordinateLine.call("seal",id);
+                    jsCoordinateLine.call("activateListener", id);
                     final ChangeListener<Boolean> changeListener =
                         (observable, newValue, oldValue) -> setCoordinateLineVisibleInMap(id);
                     coordinateLine.visibleProperty().addListener(changeListener);
+                    coordinateLine.coordinates.addListener((ListChangeListener<Coordinate>) change-> {
+                        updateCoordinateLineInJS(coordinateLine);
+                    });
+
                     // store the listener as we must unregister on removeCooridnateLine
                     coordinateLineListeners.put(id, new CoordinateLineListener(changeListener));
                     // store a weak reference to be able to remove the line from the map if the caller forgets to do so
@@ -530,6 +528,9 @@ public final class MapView extends Region implements AutoCloseable {
         }
         return this;
     }
+
+
+
 
     /**
      * shows or hides the coordinateline in the map according to it's visible property.
@@ -1142,6 +1143,7 @@ public final class MapView extends Region implements AutoCloseable {
      * @param id
      *     the id of the element to remove.
      */
+
     private void removeMapCoordinateElementWithId(final String id) {
         // sync on the map as the cleaner thread accesses this as well
         synchronized (mapCoordinateElements) {
@@ -1316,6 +1318,36 @@ public final class MapView extends Region implements AutoCloseable {
         return this;
     }
 
+    private void updateCoordinateLineInJS(CoordinateLine line){
+        final JSObject jsCoordinateLine = (JSObject) jsMapView.call("getCoordinateLine", line.getId());
+        String uniqueID = UUID.randomUUID().toString();
+        jsCoordinateLine.call("startUpdate", uniqueID);
+        line.getCoordinateStream().forEach(
+                (coord) -> jsCoordinateLine
+                        .call("addCoordinate2", coord.getLatitude(), coord.getLongitude(), uniqueID));
+        jsCoordinateLine.call("commitUpdate", uniqueID);
+    }
+
+    private void updateCoordinateLineFromJS(String id){
+        final JSObject jsCoordinateLine = (JSObject) jsMapView.call("getCoordinateLine", id);
+        final WeakReference<CoordinateLine> coordinateLineRef = coordinateLines.get(id);
+        CoordinateLine coordinateLine;
+        if(coordinateLineRef != null && (coordinateLine = coordinateLineRef.get()) != null) {
+            System.out.println("Before");
+            int size = ((Number) jsCoordinateLine.call("size")).intValue();;
+            System.out.println("Mid");
+            List<Coordinate> newCoordinates = new ArrayList<>();
+            for(int i = 0; i < size; i++) {
+                Double longitude =  ((Number) jsCoordinateLine.call("getCoordinateLongitude", i)).doubleValue();
+                Double latitude =  ((Number) jsCoordinateLine.call("getCoordinateLatitude", i)).doubleValue();
+                newCoordinates.add(new Coordinate(latitude,longitude));
+            }
+            System.out.println("End");
+            coordinateLine.setCoordinates(newCoordinates);
+        }
+    }
+
+
     public SimpleDoubleProperty zoomProperty() {
         return zoom;
     }
@@ -1343,6 +1375,12 @@ public final class MapView extends Region implements AutoCloseable {
             }
             lastCoordinateFromMap.set(newCenter);
             setCenter(newCenter);
+        }
+
+
+        public void fireModifyend(String id){
+            System.out.println("fired modify event with id:" + id);
+            updateCoordinateLineFromJS(id);
         }
 
         /**

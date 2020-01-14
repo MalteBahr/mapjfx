@@ -35,6 +35,8 @@ function CoordinateLine(projections) {
     // default is not closed
     this.closed = false;
     this.projections = projections;
+    this.name = null;
+    this.updateCoordinateTable = {};
 
 }
 
@@ -43,7 +45,7 @@ function CoordinateLine(projections) {
  */
 CoordinateLine.prototype.getCoordinates = function () {
     return this.coordinates;
-}
+};
 
 /**
  * adds a coordinate to the coordinates array
@@ -53,17 +55,79 @@ CoordinateLine.prototype.getCoordinates = function () {
 CoordinateLine.prototype.addCoordinate = function (latitude, longitude) {
     // lat/lon reversion
     this.coordinates.push(this.projections.cFromWGS84([longitude, latitude]));
-}
+};
 
+CoordinateLine.prototype.setCoordinates = function (arr) {
+    // lat/lon reversion
+    _javaConnector.debug(this.coordinates);
+
+    _javaConnector.debug(arr);
+
+    if(typeof arr[0][0][0] == "undefined"){
+
+        this.coordinates = arr;
+    }else {
+        this.coordinates = arr[0];
+    }
+    //this.coordinates.push(this.projections.cFromWGS84([longitude, latitude]));
+};
+
+
+CoordinateLine.prototype.size = function () {
+    return this.coordinates.length;
+};
+
+CoordinateLine.prototype.getCoordinateLongitude = function (i) {
+    _javaConnector.debug(this.coordinates[i]);
+    return this.projections.cToWGS84(this.coordinates[i])[0];
+};
+
+CoordinateLine.prototype.getCoordinateLatitude = function (i) {
+    return this.projections.cToWGS84(this.coordinates[i])[1];
+};
 /**
  * finishes construction of the object and builds the OL Feature based in the coordinates that were set.
  */
-CoordinateLine.prototype.seal = function () {
+CoordinateLine.prototype.seal = function (name) {
+
+    var styles = [
+        /* We are using two different styles for the polygons:
+         *  - The first style is for the polygons themselves.
+         *  - The second style is to draw the vertices of the polygons.
+         *    In a custom `geometry` function the vertices of a polygon are
+         *    returned as `MultiPoint` geometry, which will be used to render
+         *    the style.
+         */
+        new ol.style.Style({
+            stroke: new ol.style.Stroke({
+                color: 'blue',
+                width: 3
+            }),
+            fill: new ol.style.Fill({
+                color: 'rgba(0, 0, 255, 0.1)'
+            })
+        }),
+        new ol.style.Style({
+            image: new ol.style.Circle({
+                radius: 5,
+                fill: new ol.style.Fill({
+                    color: 'orange'
+                })
+            }),
+            geometry: function(feature) {
+                // return the coordinates of the first ring of the polygon
+                var coordinates = feature.getGeometry().getCoordinates()[0];
+                return new ol.geom.MultiPoint(coordinates);
+            }
+        })
+    ];
+
     if (this.closed) {
         this.feature = new ol.Feature(new ol.geom.Polygon([this.coordinates]));
     } else {
         this.feature = new ol.Feature(new ol.geom.LineString(this.coordinates));
     }
+
     var style = new ol.style.Style({
         stroke: new ol.style.Stroke({
             width: this.width,
@@ -73,8 +137,30 @@ CoordinateLine.prototype.seal = function () {
             color: this.fillColor
         })
     });
-    this.feature.setStyle(style);
+    _javaConnector.debug("line created");
+    this.feature.setStyle(styles);
+    this.name = name;
+    this.feature.setId(this.name);
+
+
 };
+
+CoordinateLine.prototype.activateListener = function(name){
+    // _javaConnector.debug("listener activated");
+    //
+    // this.feature.on("change", function (evt) {
+    //     _javaConnector.debug("feature changed");
+    //     _javaConnector.debug(JSON.stringify(evt));
+    // });
+    // this.feature.on("change:geometry", function(evt){
+    //     _javaConnector.debug("geometry changed");
+    // });
+    // let geometry = this.feature.getGeometry();
+    // geometry.on('change', function(evt) {
+    //     _javaConnector.debug("this is the changelistener",name);
+    // });
+};
+
 
 /**
  * gets the feature for OpenLayers map
@@ -141,3 +227,25 @@ CoordinateLine.prototype.setWidth = function (width) {
 CoordinateLine.prototype.setClosed = function (flag) {
     this.closed = flag
 };
+
+
+CoordinateLine.prototype.startUpdate= function(uniqueID){
+    this.updateCoordinateTable[uniqueID] = [];
+}
+
+CoordinateLine.prototype.addCoordinate2 = function(latitude, longitude, uniqueID){
+    this.updateCoordinateTable[uniqueID].push(this.projections.cFromWGS84([longitude, latitude]));
+}
+
+CoordinateLine.prototype.commitUpdate = function(uniqueID){
+    _javaConnector.debug("last");
+    _javaConnector.debug(this.coordinates);
+    this.coordinates = this.updateCoordinateTable[uniqueID];
+    _javaConnector.debug("next");
+    _javaConnector.debug(this.coordinates);
+    delete this.updateCoordinateTable[uniqueID];
+    _javaConnector.debug(this.coordinates);
+    //const type = this.feature.getGeometry().getType();
+    //TODO: LINESTRING
+    this.feature.getGeometry().setCoordinates([this.coordinates]);
+}

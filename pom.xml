@@ -59,7 +59,7 @@
             <artifactId>logback-classic</artifactId>
             <version>1.2.3</version>
             <!-- provided scope so that it is not packaged but can be used with the IntelliJ runner -->
-            <scope>provided</scope>
+<!--            <scope>provided</scope>-->
         </dependency>
 
         <!-- Test scope -->

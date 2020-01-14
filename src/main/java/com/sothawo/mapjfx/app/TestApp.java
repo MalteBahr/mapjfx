@@ -245,7 +245,7 @@ public class TestApp extends Application {
             event.consume();
         });
 
-        initOfflineCache();
+        //initOfflineCache();
         // add listener for mapView initialization state
         mapView.initializedProperty().addListener((observable, oldValue, newValue) -> {
             if (newValue) {

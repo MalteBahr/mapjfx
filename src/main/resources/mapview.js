@@ -38,11 +38,46 @@ JSMapView.prototype.toString = function () {
     return 'JSMapView with javaConnector ' + this.javaConnector;
 };
 
+console.log = function(message) { _javaConnector.debug(message); };
+console.error = function(message) { _javaConnector.debug(message);};
+
 /**
  * initializes the JSMapView and the map.
  * @param config JSON string with configuraiton settings
  */
+
 JSMapView.prototype.init = function (config) {
+    var styles = [
+        /* We are using two different styles for the polygons:
+         *  - The first style is for the polygons themselves.
+         *  - The second style is to draw the vertices of the polygons.
+         *    In a custom `geometry` function the vertices of a polygon are
+         *    returned as `MultiPoint` geometry, which will be used to render
+         *    the style.
+         */
+        new ol.style.Style({
+            stroke: new ol.style.Stroke({
+                color: 'blue',
+                width: 3
+            }),
+            fill: new ol.style.Fill({
+                color: 'rgba(0, 0, 255, 0.1)'
+            })
+        }),
+        new ol.style.Style({
+            image: new ol.style.Circle({
+                radius: 5,
+                fill: new ol.style.Fill({
+                    color: 'red'
+                })
+            }),
+            geometry: function(feature) {
+                // return the coordinates of the first ring of the polygon
+                var coordinates = feature.getGeometry().getCoordinates()[0];
+                return new ol.geom.MultiPoint(coordinates);
+            }
+        })
+    ];
 
     var configuration = JSON.parse(config);
     console.log(config);
@@ -56,7 +91,7 @@ JSMapView.prototype.init = function (config) {
     });
     // layer for the featuress
     this.layerFeatures = new ol.layer.Vector({
-        source: this.sourceFeatures
+        source: this.sourceFeatures,
     });
 
 
@@ -142,8 +177,68 @@ JSMapView.prototype.init = function (config) {
 
     this.map.addInteraction(dragBox);
 
+    var map = this.map;
+    var coordinateLines = this.coordinateLines;
+    var ExampleModify = {
+        init: function() {
+            this.select = new ol.interaction.Select({
+                condition: ol.events.condition.click
+            });
+            map.addInteraction(this.select);
+
+            this.modify = new ol.interaction.Modify({
+                features: this.select.getFeatures(),
+                insertVertexCondition: ol.events.condition.never
+            });
+            map.addInteraction(this.modify);
+
+
+
+            this.setEvents();
+        },
+        setEvents: function() {
+            var selectedFeatures = this.select.getFeatures();
+
+            // this.select.on('change:active', function() {
+            //     selectedFeatures.forEach(function(each) {
+            //         each.setStyle(styles);
+            //     });
+            // });
+            selectedFeatures.on('add', function(evt){
+                var feature = evt.target.item(0);
+                //_javaConnector.featureClicked();
+                feature.setStyle(styles);
+            });
+
+            this.modify.on('modifyend',function(e){
+                _javaConnector.debug("ModifyEnd EVENT <<<<<<<<<<");
+                var features = e.features.getArray();
+                for (var i=0;i<features.length;i++) {
+                    if(features[i].getGeometry() instanceof ol.geom.Polygon || features[i].getGeometry() instanceof ol.geom.LineString) {
+                        coordinateLines[features[i].getId()].setCoordinates(features[i].getGeometry().getCoordinates());
+                        _javaConnector.fireModifyend(features[i].getId());
+                    }
+
+                }
+            });
+
+        },
+        setActive: function(active) {
+            this.select.setActive(active);
+            this.modify.setActive(active);
+        }
+    };
+    ExampleModify.init();
+    var snap = new ol.interaction.Snap({
+        source: this.sourceFeatures
+    });
+    this.map.addInteraction(snap);
     this.setMapType('OSM');
 };
+
+
+
+
 
 /**
  * sets the center of the map
@@ -350,6 +445,7 @@ JSMapView.prototype.getCoordinateLine = function (name) {
     if (!coordinateLine) {
         coordinateLine = new CoordinateLine(this.projections);
         this.coordinateLines[name] = coordinateLine;
+        //TODO: changelistener for coordinateLine with 'name'!
         this.javaConnector.debug("created CoordinateLine object named " + name);
     }
     return coordinateLine;

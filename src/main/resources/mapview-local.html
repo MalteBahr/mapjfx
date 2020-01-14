@@ -159,6 +159,9 @@ Copyright 2015-2019 Peter-Josef Meisch (pj.meisch@sothawo.com)
         },
         extentChanged: function (minLat, minLon, maxLat, maxLon) {
             console.log("extent: " + minLat + ", " + minLon + ", " + maxLat + ", " + maxLon);
+        },
+        fireModifyend: function (id) {
+            console.log("modifyend on " + id);
         }
     };
 
