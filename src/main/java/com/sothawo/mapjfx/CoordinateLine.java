@@ -15,6 +15,9 @@
 */
 package com.sothawo.mapjfx;
 
+import javafx.beans.property.IntegerProperty;
+import javafx.beans.property.SimpleIntegerProperty;
+import javafx.beans.value.ObservableIntegerValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
@@ -48,6 +51,7 @@ public class CoordinateLine extends MapElement {
     private final String id;
     /** the coordinates of the line */
     protected final ObservableList<Coordinate> coordinates = FXCollections.observableArrayList();
+    protected final IntegerProperty userChanges = new SimpleIntegerProperty(0);
     /** color of the line */
     private Color color;
     /** fill color of the line, only relevant when the line is closed */
@@ -198,14 +202,16 @@ public class CoordinateLine extends MapElement {
     }
 
     public void setCoordinates(List<Coordinate> newCoordinates) {
+      setCoordinatesNoChange(newCoordinates);
+      userChanges.setValue(userChanges.get()+1);
+    }
+    protected void setCoordinatesNoChange(List<Coordinate> newCoordinates){
         System.out.println("changed CoordinateLine " + id);
         System.out.println("old: " +this.coordinates);
         this.coordinates.setAll(requireNonNull(newCoordinates));
 
         System.out.println("new: " +this.coordinates);
-}
-
-
+    }
     public void addListener(ListChangeListener<? super Coordinate> listChangeListener){
         this.coordinates.addListener(listChangeListener);
     }

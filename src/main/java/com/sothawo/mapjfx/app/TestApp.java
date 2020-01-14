@@ -41,8 +41,11 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.FileSystems;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
+
+import static java.util.Objects.requireNonNull;
 
 /**
  * Test application.
@@ -57,6 +60,8 @@ public class TestApp extends Application {
     private static final Coordinate coordKarlsruheCastle = new Coordinate(49.013517, 8.404435);
     private static final Coordinate coordKarlsruheHarbour = new Coordinate(49.015511, 8.323497);
     private static final Coordinate coordKarlsruheStation = new Coordinate(48.993284, 8.402186);
+    private static final Coordinate coordKarlsruheGarden = new Coordinate(48.998610, 8.40141);
+
     private static final Extent extentAll =
         Extent.forCoordinates(coordKarlsruheHarbour, coordKarlsruheCastle, coordKarlsruheStation);
 
@@ -505,9 +510,15 @@ public class TestApp extends Application {
         hbox.getChildren().add(btn);
 
         btn = new Button();
+        btn.setText("move Track from Java");
+        btn.setOnAction(evt -> coordinateLine.setCoordinates(Arrays.asList(coordKarlsruheCastle,coordKarlsruheHarbour,coordKarlsruheGarden)));
+        hbox.getChildren().add(btn);
+
+        btn = new Button();
         btn.setText("toggle Track visibilty");
         btn.setOnAction(evt -> coordinateLine.setVisible(!coordinateLine.getVisible()));
         hbox.getChildren().add(btn);
+
 
         btn = new Button();
         btn.setText("GC");

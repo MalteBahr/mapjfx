@@ -218,7 +218,6 @@ JSMapView.prototype.init = function (config) {
                         coordinateLines[features[i].getId()].setCoordinates(features[i].getGeometry().getCoordinates());
                         _javaConnector.fireModifyend(features[i].getId());
                     }
-
                 }
             });
 

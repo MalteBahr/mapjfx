@@ -517,11 +517,11 @@ public final class MapView extends Region implements AutoCloseable {
                     jsCoordinateLine.call("activateListener", id);
                     final ChangeListener<Boolean> changeListener =
                         (observable, newValue, oldValue) -> setCoordinateLineVisibleInMap(id);
-                    coordinateLine.visibleProperty().addListener(changeListener);
-                    coordinateLine.coordinates.addListener((ListChangeListener<Coordinate>) change-> {
-                        updateCoordinateLineInJS(coordinateLine);
-                    });
+                    final ChangeListener<Number> changeListener2 =
+                            (observable, newValue, oldValue) -> updateCoordinateLineInJS(coordinateLine);
 
+                    coordinateLine.visibleProperty().addListener(changeListener);
+                    coordinateLine.userChanges.addListener(changeListener2);
                     // store the listener as we must unregister on removeCooridnateLine
                     coordinateLineListeners.put(id, new CoordinateLineListener(changeListener));
                     // store a weak reference to be able to remove the line from the map if the caller forgets to do so
@@ -1347,7 +1347,7 @@ public final class MapView extends Region implements AutoCloseable {
                 newCoordinates.add(new Coordinate(latitude,longitude));
             }
             System.out.println("End");
-            coordinateLine.setCoordinates(newCoordinates);
+            coordinateLine.setCoordinatesNoChange(newCoordinates);
         }
     }
 
