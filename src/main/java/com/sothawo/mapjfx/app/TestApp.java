@@ -16,6 +16,7 @@
 package com.sothawo.mapjfx.app;
 
 import com.sothawo.mapjfx.*;
+import com.sothawo.mapjfx.Styling.Style;
 import com.sothawo.mapjfx.event.MapLabelEvent;
 import com.sothawo.mapjfx.event.MapViewEvent;
 import com.sothawo.mapjfx.event.MarkerEvent;
@@ -41,9 +42,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.FileSystems;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedList;
+import java.util.*;
 
 import static java.util.Objects.requireNonNull;
 
@@ -66,12 +65,8 @@ public class TestApp extends Application {
         Extent.forCoordinates(coordKarlsruheHarbour, coordKarlsruheCastle, coordKarlsruheStation);
 
     private static final CoordinateLine coordinateLine =
-        new CoordinateLine(coordKarlsruheCastle, coordKarlsruheHarbour, coordKarlsruheStation)
-            .setVisible(true)
-            .setColor(Color.DODGERBLUE)
-            .setWidth(7)
-            .setClosed(true)
-            .setFillColor(Color.web("lawngreen", 0.5));
+            new CoordinateLine(LineType.POLYGON,coordKarlsruheCastle, coordKarlsruheHarbour, coordKarlsruheStation)
+                    .setVisible(true).setSelectable(true);
 
     private static final Marker marker;
 
@@ -81,6 +76,11 @@ public class TestApp extends Application {
 
     private static final XYZParam xyzParam;
 
+
+
+
+
+    private static ArrayList<CoordinateLine> abc = new ArrayList<>();
     static {
         marker = Marker.createProvided(Marker.Provided.BLUE).setPosition(coordKarlsruheCastle).setVisible(true);
         mapLabel = new MapLabel("blau!")
@@ -113,6 +113,7 @@ public class TestApp extends Application {
 
     /** api keys for bing maps. */
     private TextField bingApiKey;
+    private List<CoordinateLine> coordinateLines = new LinkedList<>();
 
     public static void main(String[] args) {
         launch(args);
@@ -271,8 +272,7 @@ public class TestApp extends Application {
                 // add a coordinate line to be gc'ed
                 mapView.addCoordinateLine(
                     new CoordinateLine(coordKarlsruheHarbour, coordKarlsruheStation, coordKarlsruheCastle)
-                        .setVisible(true)
-                        .setColor(Color.FUCHSIA).setWidth(5));
+                        .setVisible(true));
 
                 // add a label to be gc'ed
                 mapView.addLabel(new MapLabel("clean me up").setPosition(coordKarlsruheStation)
@@ -489,6 +489,8 @@ public class TestApp extends Application {
         btn.setOnAction(evt -> mapView.addMarker(marker));
         hbox.getChildren().add(btn);
 
+
+
         btn = new Button();
         btn.setText("toggle marker visibility");
         btn.setOnAction(evt -> marker.setVisible(!marker.getVisible()));
@@ -504,6 +506,17 @@ public class TestApp extends Application {
         btn.setOnAction(evt -> mapView.addCoordinateLine(coordinateLine));
         hbox.getChildren().add(btn);
 
+
+
+
+        btn = new Button();
+        btn.setText("change Style");
+        btn.setOnAction(evt -> coordinateLine.getRootStyle().setAll(List.of(Style.DEFAULT_SELECTED_STYLE())));
+        hbox.getChildren().add(btn);
+
+
+
+
         btn = new Button();
         btn.setText("remove Track");
         btn.setOnAction(evt -> mapView.removeCoordinateLine(coordinateLine));
@@ -511,7 +524,7 @@ public class TestApp extends Application {
 
         btn = new Button();
         btn.setText("move Track from Java");
-        btn.setOnAction(evt -> coordinateLine.setCoordinates(Arrays.asList(coordKarlsruheCastle,coordKarlsruheHarbour,coordKarlsruheGarden)));
+        btn.setOnAction(evt -> coordinateLine.setCoordinates(Arrays.asList(coordKarlsruheCastle,coordKarlsruheHarbour,coordKarlsruheStation,coordKarlsruheGarden)));
         hbox.getChildren().add(btn);
 
         btn = new Button();
@@ -570,9 +583,27 @@ public class TestApp extends Application {
         btn.setOnAction(evt -> mapView.clearConstrainExtent());
         hbox.getChildren().add(btn);
 
+
+        Color color = Color.rgb(255,255,255,0.4);
+        System.out.println("COLOR:");
+        System.out.println(color);
+
+        btn = new Button();
+        btn.setText("add CoordinateLine");
+        btn.setOnAction(evt -> {
+                    CoordinateLine a = new CoordinateLine(LineType.LINE_STRING).setVisible(true);
+                    coordinateLines.add(a);
+                    mapView.drawCoordinateLine(a, c -> System.out.println("added stuff: " + c));
+        }
+
+        );
+        hbox.getChildren().add(btn);
+
         vbox.getChildren().add(hbox);
 
         vbox.setDisable(true);
+
+
 
         return vbox;
     }

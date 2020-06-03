@@ -15,13 +15,16 @@
 */
 package com.sothawo.mapjfx;
 
+import com.sothawo.mapjfx.Styling.RootStyle;
+import com.sothawo.mapjfx.Styling.Style;
+import javafx.beans.InvalidationListener;
+import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.IntegerProperty;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleIntegerProperty;
-import javafx.beans.value.ObservableIntegerValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
-import javafx.scene.paint.Color;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -37,14 +40,6 @@ import static java.util.Objects.*;
  * @author P.J.Meisch (pj.meisch@sothawo.com)
  */
 public class CoordinateLine extends MapElement {
-
-    /** default color: dodgerblue slightly transparent */
-    public static final Color DEFAULT_COLOR = Color.web("#32CD32", 0.7);
-    /** default color: dark orange transparent */
-    public static final Color DEFAULT_FILL_COLOR = Color.web("#ff8c00", 0.3);
-    /** default width 3 */
-    public static final int DEFAULT_WIDTH = 3;
-
     /** counter for creating the id */
     private final static AtomicLong nextId = new AtomicLong(1);
     /** unique id for this object */
@@ -52,14 +47,68 @@ public class CoordinateLine extends MapElement {
     /** the coordinates of the line */
     protected final ObservableList<Coordinate> coordinates = FXCollections.observableArrayList();
     protected final IntegerProperty userChanges = new SimpleIntegerProperty(0);
-    /** color of the line */
-    private Color color;
-    /** fill color of the line, only relevant when the line is closed */
-    private Color fillColor;
-    /** width of the line */
-    private int width;
-    /** flag if the CoordinateLine is closed (it's a polygon then) */
-    private Boolean closed = false;
+    protected final IntegerProperty rootstyle_changes = new SimpleIntegerProperty(0);
+    protected final IntegerProperty selected_rootstyle_changes = new SimpleIntegerProperty(0);
+    public final BooleanProperty selected = new SimpleBooleanProperty(false);
+
+
+    public void addListener(ListChangeListener<? super Coordinate> changeListener){
+        this.coordinates.addListener(changeListener);
+    }
+
+    public void addListener(InvalidationListener changeListener){
+        this.coordinates.addListener(changeListener);
+    }
+
+    public RootStyle getRootStyle() {
+        return rootStyle;
+    }
+
+    public RootStyle getSelected_rootStyle() {
+        return selected_rootStyle;
+    }
+
+    public void setRootStyle(RootStyle style){
+        this.rootStyle = style;
+        rootstyle_changes.unbind();
+        rootstyle_changes.set(rootstyle_changes.get()+1);
+        rootstyle_changes.bind(style.changesProperty());
+    }
+
+    public void setSelectedRootStyle(RootStyle style){
+        this.selected_rootStyle = style;
+        selected_rootstyle_changes.unbind();
+        selected_rootstyle_changes.bind(style.changesProperty());
+    }
+
+
+    protected RootStyle rootStyle ;
+
+    protected  RootStyle selected_rootStyle;
+
+    protected String getStyle() {
+        return rootStyle.toString();
+    }
+
+    protected String getSelectedStyle(){
+        return selected_rootStyle.toString();
+    }
+
+    public boolean isSelectable() {
+        return selectable.getValue();
+    }
+
+    protected BooleanProperty selectableProperty(){return this.selectable;}
+
+    public CoordinateLine setSelectable(boolean selectable) {
+        this.selectable.set(selectable);
+        return this;
+    }
+
+    public BooleanProperty selectable = new SimpleBooleanProperty(false);
+
+    private final LineType lineType;
+
 
     /**
      * Creates a CoordinateLine for the given coordinates.
@@ -70,13 +119,20 @@ public class CoordinateLine extends MapElement {
      * @throws java.lang.NullPointerException
      *         if coordinates is null
      */
-    public CoordinateLine(List<? extends Coordinate> coordinates) {
+
+    public CoordinateLine(List<? extends Coordinate> coordinates, LineType lineType){
         this.id = "coordinateline-" + nextId.getAndIncrement();
         this.coordinates.setAll(requireNonNull(coordinates));
         // slightly transparent limegreen
-        this.color = DEFAULT_COLOR;
-        this.fillColor = DEFAULT_FILL_COLOR;
-        this.width = DEFAULT_WIDTH;
+        this.lineType = lineType;
+        this.rootStyle = new RootStyle(Style.DEFAULT_STYLE());
+        this.selected_rootStyle = new RootStyle(Style.DEFAULT_STYLE());
+        System.out.println("Default Style: " + this.rootStyle);
+
+    }
+
+    public CoordinateLine(List<? extends Coordinate> coordinates) {
+        this(coordinates,LineType.POLYGON);
     }
 
     /**
@@ -91,73 +147,16 @@ public class CoordinateLine extends MapElement {
     public CoordinateLine(final Coordinate... coordinates) {
         this(Arrays.asList(requireNonNull(coordinates)));
     }
-
-    public Color getColor() {
-        return color;
+    public CoordinateLine(LineType lineType, final Coordinate... coordinates) {
+        this(Arrays.asList(requireNonNull(coordinates)),lineType);
     }
 
-    /**
-     * sets the new color. when changing color, the CoordinateLine must be removed and re-added to the map in order to
-     * make the change visible.
-     *
-     * @param color
-     *         the new color
-     * @return this object
-     * @throws java.lang.NullPointerException
-     *         when color is null
-     */
-    public CoordinateLine setColor(final Color color) {
-        this.color = requireNonNull(color);
-        return this;
-    }
 
-    public Color getFillColor() {
-        return fillColor;
-    }
-
-    /**
-     * sets the new fill color. when changing color, the CoordinateLine must be removed and re-added to the map in order to
-     * make the change visible.
-     *
-     * @param color
-     *         the new color
-     * @return this object
-     * @throws java.lang.NullPointerException
-     *         when color is null
-     */
-    public CoordinateLine setFillColor(final Color color) {
-        this.fillColor = requireNonNull(color);
-        return this;
-    }
 
     public String getId() {
         return id;
     }
 
-    public int getWidth() {
-        return width;
-    }
-
-    /**
-     * sets the width
-     *
-     * @param width
-     *         the new width
-     * @return this object
-     */
-    public CoordinateLine setWidth(final int width) {
-        this.width = width;
-        return this;
-    }
-
-    public Boolean isClosed() {
-        return closed;
-    }
-
-    public CoordinateLine setClosed(final Boolean closed) {
-        this.closed = closed;
-        return this;
-    }
 
     @Override
     public int hashCode() {
@@ -171,9 +170,7 @@ public class CoordinateLine extends MapElement {
 
         CoordinateLine that = (CoordinateLine) o;
 
-        if (!id.equals(that.id)) return false;
-
-        return true;
+        return id.equals(that.id);
     }
 
     @Override
@@ -181,10 +178,8 @@ public class CoordinateLine extends MapElement {
         return "CoordinateLine{" +
                 "id='" + id + '\'' +
                 ", coordinates=" + coordinates +
-                ", color=" + color +
-                ", fillCclor=" + fillColor +
-                ", width=" + width +
-                ", closed=" + closed +
+                ", style=" + rootStyle +
+                ", selected style=" + selected_rootStyle +
                 "} " + super.toString();
     }
 
@@ -212,7 +207,14 @@ public class CoordinateLine extends MapElement {
 
         System.out.println("new: " +this.coordinates);
     }
-    public void addListener(ListChangeListener<? super Coordinate> listChangeListener){
-        this.coordinates.addListener(listChangeListener);
+
+    public LineType getLineType() {
+        return lineType;
     }
+
+
+
+
+
+
 }

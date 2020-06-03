@@ -21,14 +21,8 @@ import com.sothawo.mapjfx.event.MapViewEvent;
 import com.sothawo.mapjfx.event.MarkerEvent;
 import com.sothawo.mapjfx.offline.OfflineCache;
 import javafx.application.Platform;
-import javafx.beans.InvalidationListener;
-import javafx.beans.property.ReadOnlyBooleanProperty;
-import javafx.beans.property.ReadOnlyBooleanWrapper;
-import javafx.beans.property.SimpleDoubleProperty;
-import javafx.beans.property.SimpleIntegerProperty;
-import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.property.*;
 import javafx.beans.value.ChangeListener;
-import javafx.collections.ListChangeListener;
 import javafx.concurrent.Worker;
 import javafx.event.EventType;
 import javafx.scene.layout.Background;
@@ -129,8 +123,11 @@ public final class MapView extends Region implements AutoCloseable {
      * are gc'ed the keys in this map point to null and are used to clean up the internal structures.
      */
     private final Map<String, WeakReference<CoordinateLine>> coordinateLines = new HashMap<>();
+    private CoordinateLine toCreateFromJS;
     /**
-     * the listeners that are attached to the CoordinateLine objects.
+     *
+     *
+     *
      */
     private final Map<String, CoordinateLineListener> coordinateLineListeners = new HashMap<>();
     /**
@@ -171,6 +168,7 @@ public final class MapView extends Region implements AutoCloseable {
     private Optional<XYZParam> xyzParam = Optional.empty();
     /** the thread to clean weak references. */
     private Thread weakRefCleaner;
+    private Map<String,Callback<Boolean>> callbackMap = new HashMap<>();
 
     /**
      * create a MapView with no initial center coordinate.
@@ -267,6 +265,21 @@ public final class MapView extends Region implements AutoCloseable {
             setMapTypeInMap();
         });
     }
+
+
+
+
+
+    private void notifyListeners(CoordinateLine line){
+        var callback = callbackMap.get(line.getId());
+        if(callback != null) {
+            System.out.println("calling callback");
+            callback.call(true);
+            callbackMap.remove(line.getId());
+        }
+    }
+
+
 
     /**
      * defines and starts the thread watching the weak reference queue(s)
@@ -486,6 +499,33 @@ public final class MapView extends Region implements AutoCloseable {
      * @throws java.lang.NullPointerException
      *     if argument is null
      */
+
+    public MapView drawCoordinateLine(final CoordinateLine coordinateLine, Callback<Boolean> callback ){
+        if (!getInitialized()) {
+            if (logger.isWarnEnabled()) {
+                logger.warn(MAP_VIEW_NOT_YET_INITIALIZED);
+            }
+        }else{
+            synchronized (coordinateLines){
+                final String id = requireNonNull(coordinateLine).getId();
+                if (!coordinateLines.containsKey(id)) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("adding coordinate line {}", coordinateLine);
+                    }
+                    final JSObject jsCoordinateLine = (JSObject) jsMapView.call("drawCoordinateLine", id, coordinateLine.getLineType().toString());
+                    callbackMap.put(id,c -> {setupCoordinateLineListeners(coordinateLine, id);selectCoordinateLine(id,true);callback.call(c);});
+                    toCreateFromJS = coordinateLine;
+
+                }
+            }
+
+        }
+        return this;
+    }
+
+
+
+
     public MapView addCoordinateLine(final CoordinateLine coordinateLine) {
         if (!getInitialized()) {
             if (logger.isWarnEnabled()) {
@@ -499,40 +539,82 @@ public final class MapView extends Region implements AutoCloseable {
                     if (logger.isDebugEnabled()) {
                         logger.debug("adding coordinate line {}", coordinateLine);
                     }
-                    final JSObject jsCoordinateLine = (JSObject) jsMapView.call("getCoordinateLine", id);
+                    System.out.println("Line to be added: " + coordinateLine.getLineType().toString());
+                    final JSObject jsCoordinateLine = (JSObject) jsMapView.call("getCoordinateLine", coordinateLine.getId(), coordinateLine.getLineType().toString());
                     coordinateLine.getCoordinateStream().forEach(
-                        (coord) -> jsCoordinateLine
-                            .call("addCoordinate", coord.getLatitude(), coord.getLongitude()));
-                    final javafx.scene.paint.Color color = coordinateLine.getColor();
-                    jsCoordinateLine.call("setColor",
-                        color.getRed() * 255, color.getGreen() * 255, color.getBlue() * 255,
-                        color.getOpacity());
-                    final javafx.scene.paint.Color fillColor = coordinateLine.getFillColor();
-                    jsCoordinateLine.call("setFillColor",
-                        fillColor.getRed() * 255, fillColor.getGreen() * 255, fillColor.getBlue() * 255,
-                        fillColor.getOpacity());
-                    jsCoordinateLine.call("setWidth", coordinateLine.getWidth());
-                    jsCoordinateLine.call("setClosed", coordinateLine.isClosed());
-                    jsCoordinateLine.call("seal",id);
-                    jsCoordinateLine.call("activateListener", id);
-                    final ChangeListener<Boolean> changeListener =
-                        (observable, newValue, oldValue) -> setCoordinateLineVisibleInMap(id);
-                    final ChangeListener<Number> changeListener2 =
-                            (observable, newValue, oldValue) -> updateCoordinateLineInJS(coordinateLine);
-
-                    coordinateLine.visibleProperty().addListener(changeListener);
-                    coordinateLine.userChanges.addListener(changeListener2);
-                    // store the listener as we must unregister on removeCooridnateLine
-                    coordinateLineListeners.put(id, new CoordinateLineListener(changeListener));
-                    // store a weak reference to be able to remove the line from the map if the caller forgets to do so
-                    coordinateLines.put(id, new WeakReference<>(coordinateLine, weakReferenceQueue));
-                    setCoordinateLineVisibleInMap(id);
+                            (coord) -> jsCoordinateLine
+                                    .call("addCoordinate", coord.getLatitude(), coord.getLongitude()));
+                    System.out.println("Starting stuff");
+                    if(coordinateLine.getStyle() != null) {
+                        System.out.println(coordinateLine.getStyle());
+                        JSObject style = (JSObject) webEngine.executeScript(coordinateLine.getStyle());
+                        jsCoordinateLine.call("setStyle", style);
+                    }
+                    System.out.println("finished setting style");
+                    setupCoordinateLineListeners(coordinateLine, id);
                 }
             }
         }
         return this;
     }
 
+    private void setupCoordinateLineListeners(CoordinateLine coordinateLine, String id) {
+        final ChangeListener<Boolean> changeListener =
+            (observable, newValue, oldValue) -> setCoordinateLineVisibleInMap(id);
+        final ChangeListener<Number> changeListener2 =
+                (observable, newValue, oldValue) -> updateCoordinateLineInJS(coordinateLine);
+        final ChangeListener<Number> changeListener3 =
+                (obs,oldv,newv) -> {
+                    System.out.println("changing Style in JS");
+                    setCoordinateLineStyles(id);
+                };
+
+        final ChangeListener<Boolean> changeListener4 =
+                (observable, newValue, oldValue) -> setSelectable(id);
+
+        coordinateLine.visibleProperty().addListener(changeListener);
+        coordinateLine.userChanges.addListener(changeListener2);
+        coordinateLine.rootstyle_changes.addListener(changeListener3);
+        coordinateLine.selected_rootstyle_changes.addListener(changeListener3);
+        // store the listener as we must unregister on removeCooridnateLine
+        coordinateLineListeners.put(id, new CoordinateLineListener(changeListener));
+        // store a weak reference to be able to remove the line from the map if the caller forgets to do so
+        coordinateLines.put(id, new WeakReference<>(coordinateLine, weakReferenceQueue));
+        setCoordinateLineStyles(id);
+        setCoordinateLineVisibleInMap(id);
+        setSelectable(id);
+        updateCoordinateLineFromJS(id);
+    }
+
+    private void setSelectable(String id) {
+        if (null != id) {
+            final WeakReference<CoordinateLine> coordinateLineWeakReference = coordinateLines.get(id);
+            if (null != coordinateLineWeakReference) {
+                final CoordinateLine coordinateLine = coordinateLineWeakReference.get();
+                if (null != coordinateLine) {
+                    JSObject jsCoordinateLine = (JSObject) jsMapView.call("getCoordinateLine",id);
+                    jsCoordinateLine.call("setSelectable", coordinateLine.isSelectable());
+                    }
+            }
+        }
+    }
+
+    private void setCoordinateLineStyles(String id){
+        if (null != id) {
+            final WeakReference<CoordinateLine> coordinateLineWeakReference = coordinateLines.get(id);
+            if (null != coordinateLineWeakReference) {
+                final CoordinateLine coordinateLine = coordinateLineWeakReference.get();
+                if (null != coordinateLine) {
+                    System.out.println("SETTING STYLE WITH: " + coordinateLine.getStyle());
+                    JSObject jsCoordinateLine = (JSObject) jsMapView.call("getCoordinateLine",id);
+                    JSObject style = (JSObject) webEngine.executeScript(coordinateLine.getStyle());
+                    jsCoordinateLine.call("setStyle", style);
+                    JSObject selected_style = (JSObject) webEngine.executeScript(coordinateLine.getSelectedStyle());
+                    jsCoordinateLine.call("setSelectedStyle", selected_style);
+                }
+            }
+        }
+    }
 
 
 
@@ -1088,6 +1170,8 @@ public final class MapView extends Region implements AutoCloseable {
                     logger.debug("removing coordinate line {}", id);
                 }
 
+                System.out.println("removing coordinate line " + id);
+
                 jsMapView.call("hideCoordinateLine", id);
                 jsMapView.call("removeCoordinateLine", id);
 
@@ -1333,10 +1417,23 @@ public final class MapView extends Region implements AutoCloseable {
     }
 
     private void updateCoordinateLineFromJS(String id){
+        System.out.println("HEY1");
         final JSObject jsCoordinateLine = (JSObject) jsMapView.call("getCoordinateLine", id);
+        System.out.println("HEY2");
+
         final WeakReference<CoordinateLine> coordinateLineRef = coordinateLines.get(id);
+
+        System.out.println("HEY3");
         CoordinateLine coordinateLine;
-        if(coordinateLineRef != null && (coordinateLine = coordinateLineRef.get()) != null) {
+        if(coordinateLineRef == null){
+
+            System.out.println("HEY4");
+        }
+        if((coordinateLine = coordinateLineRef.get()) == null){
+            System.out.println("LOST REFERENCE");
+        }
+
+        {
             System.out.println("Before");
             int size = ((Number) jsCoordinateLine.call("size")).intValue();;
             System.out.println("Mid");
@@ -1351,6 +1448,13 @@ public final class MapView extends Region implements AutoCloseable {
         }
     }
 
+    private void selectCoordinateLine(String id, boolean selected){
+        final WeakReference<CoordinateLine> coordinateLineRef = coordinateLines.get(id);
+        CoordinateLine c;
+        if(coordinateLineRef != null && (c =  coordinateLineRef.get()) != null){
+            c.selected.set(selected);
+        }
+    }
 
     public SimpleDoubleProperty zoomProperty() {
         return zoom;
@@ -1385,6 +1489,21 @@ public final class MapView extends Region implements AutoCloseable {
         public void fireModifyend(String id){
             System.out.println("fired modify event with id:" + id);
             updateCoordinateLineFromJS(id);
+        }
+
+        public void fireSelectEvent(String id, boolean selected){
+            System.out.println("FireSelectEvent");
+            selectCoordinateLine(id, selected);
+        }
+
+        public void seal(String id){
+            System.out.println("new coordinateline in JS " + id);
+            if(toCreateFromJS!=null && toCreateFromJS.getId().equals(id)){
+                System.out.println("notifying listeners");
+                notifyListeners(toCreateFromJS);
+            }
+            toCreateFromJS = null;
+            System.out.println("finished seal");
         }
 
         /**

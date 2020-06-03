@@ -22,75 +22,12 @@
 /**
  * @constructor
  */
-function CoordinateLine(projections) {
-    this.coordinates = [];
-    this.feature = null;
+function CoordinateLine(projections, geometryType, name, feature ) {
+    //final feature
+    this.feature = feature;
     this.onMap = false;
     // default color opaque red
-    this.color = [255, 0, 0, 1];
-    // default fill color transparent yellow
-    this.fillColor = [255, 255, 0, 0.3];
-    // default width 3
-    this.width = 3;
-    // default is not closed
-    this.closed = false;
-    this.projections = projections;
-    this.name = null;
-    this.updateCoordinateTable = {};
-
-}
-
-/**
- * @returns {array} the coordinates of this CoordinateLine. Coordinates are in longitude/latitude order.
- */
-CoordinateLine.prototype.getCoordinates = function () {
-    return this.coordinates;
-};
-
-/**
- * adds a coordinate to the coordinates array
- * @param {number} latitude value in WGS84
- * @param {number} longitude value in WGS84
- */
-CoordinateLine.prototype.addCoordinate = function (latitude, longitude) {
-    // lat/lon reversion
-    this.coordinates.push(this.projections.cFromWGS84([longitude, latitude]));
-};
-
-CoordinateLine.prototype.setCoordinates = function (arr) {
-    // lat/lon reversion
-    _javaConnector.debug(this.coordinates);
-
-    _javaConnector.debug(arr);
-
-    if(typeof arr[0][0][0] == "undefined"){
-
-        this.coordinates = arr;
-    }else {
-        this.coordinates = arr[0];
-    }
-    //this.coordinates.push(this.projections.cFromWGS84([longitude, latitude]));
-};
-
-
-CoordinateLine.prototype.size = function () {
-    return this.coordinates.length;
-};
-
-CoordinateLine.prototype.getCoordinateLongitude = function (i) {
-    _javaConnector.debug(this.coordinates[i]);
-    return this.projections.cToWGS84(this.coordinates[i])[0];
-};
-
-CoordinateLine.prototype.getCoordinateLatitude = function (i) {
-    return this.projections.cToWGS84(this.coordinates[i])[1];
-};
-/**
- * finishes construction of the object and builds the OL Feature based in the coordinates that were set.
- */
-CoordinateLine.prototype.seal = function (name) {
-
-    var styles = [
+    this.feature.setStyle([
         /* We are using two different styles for the polygons:
          *  - The first style is for the polygons themselves.
          *  - The second style is to draw the vertices of the polygons.
@@ -100,11 +37,11 @@ CoordinateLine.prototype.seal = function (name) {
          */
         new ol.style.Style({
             stroke: new ol.style.Stroke({
-                color: 'blue',
+                color: "green",
                 width: 3
             }),
             fill: new ol.style.Fill({
-                color: 'rgba(0, 0, 255, 0.1)'
+                color: "rgba(0, 0, 240, 0.1)"
             })
         }),
         new ol.style.Style({
@@ -114,52 +51,145 @@ CoordinateLine.prototype.seal = function (name) {
                     color: 'orange'
                 })
             }),
-            geometry: function(feature) {
+            geometry: function (feature) {
                 // return the coordinates of the first ring of the polygon
-                var coordinates = feature.getGeometry().getCoordinates()[0];
+
+                let coordinates;
+                if (feature.getGeometry().getType() === "Polygon") {
+                    coordinates = feature.getGeometry().getCoordinates()[0];
+                } else if (feature.getGeometry().getType() === "LineString") {
+                    coordinates = feature.getGeometry().getCoordinates();
+                }
                 return new ol.geom.MultiPoint(coordinates);
             }
         })
-    ];
+    ]);
 
-    if (this.closed) {
-        this.feature = new ol.Feature(new ol.geom.Polygon([this.coordinates]));
-    } else {
-        this.feature = new ol.Feature(new ol.geom.LineString(this.coordinates));
-    }
-
-    var style = new ol.style.Style({
-        stroke: new ol.style.Stroke({
-            width: this.width,
-            color: this.color
+    this.feature.selectedStyle = [
+        /* We are using two different styles for the polygons:
+         *  - The first style is for the polygons themselves.
+         *  - The second style is to draw the vertices of the polygons.
+         *    In a custom `geometry` function the vertices of a polygon are
+         *    returned as `MultiPoint` geometry, which will be used to render
+         *    the style.
+         */
+        new ol.style.Style({
+            zIndex:100,
+            stroke: new ol.style.Stroke({
+                color: 'darkblue',
+                width: 3
+            }),
+            fill: new ol.style.Fill({
+                color: 'rgba(0, 0, 255, 0.1)'
+            })
         }),
-        fill: new ol.style.Fill({
-            color: this.fillColor
+        new ol.style.Style({
+            zIndex:100,
+            image: new ol.style.Circle({
+                radius: 5,
+                fill: new ol.style.Fill({
+                    color: 'red',
+                })
+            }),
+            // geometry: function(feature) {
+            //     // return the coordinates of the first ring of the polygon
+            //     let coordinates;
+            //     if(feature.getGeometry().getType() === "Polygon"){
+            //         coordinates = feature.getGeometry().getCoordinates()[0];
+            //     }else if(feature.getGeometry().getType() === "LineString"){
+            //         coordinates = feature.getGeometry().getCoordinates();
+            //     }
+            //     return new ol.geom.MultiPoint(coordinates);
+            // }
         })
-    });
-    _javaConnector.debug("line created");
-    this.feature.setStyle(styles);
+    ];
+    this.feature.setId(name);
+    // default is not closed
+    this.projections = projections;
     this.name = name;
-    this.feature.setId(this.name);
+    this.updateCoordinateTable = {};
+}
 
-
+/**
+ * @returns {array} the coordinates of this CoordinateLine. Coordinates are in longitude/latitude order.
+ */
+CoordinateLine.prototype.getCoordinates = function (right){
+    if(this.feature.getGeometry().getType() === "Polygon"){
+        return  this.feature.getGeometry().getCoordinates(right)[0];
+    }else if(this.feature.getGeometry().getType() === "LineString"){
+        return this.feature.getGeometry().getCoordinates(right);
+    }
 };
 
-CoordinateLine.prototype.activateListener = function(name){
-    // _javaConnector.debug("listener activated");
-    //
-    // this.feature.on("change", function (evt) {
-    //     _javaConnector.debug("feature changed");
-    //     _javaConnector.debug(JSON.stringify(evt));
-    // });
-    // this.feature.on("change:geometry", function(evt){
-    //     _javaConnector.debug("geometry changed");
-    // });
-    // let geometry = this.feature.getGeometry();
-    // geometry.on('change', function(evt) {
-    //     _javaConnector.debug("this is the changelistener",name);
-    // });
+/**
+ * adds a coordinate to the coordinates array
+ * @param {number} latitude value in WGS84
+ * @param {number} longitude value in WGS84
+ */
+CoordinateLine.prototype.addCoordinate = function (latitude, longitude) {
+    // lat/lon reversion
+
+    if(this.feature.getGeometry().getType() === "Polygon"){
+        _javaConnector.debug("adding coordinate" + this.feature.getGeometry().getCoordinates());
+        let arr = this.feature.getGeometry().getCoordinates();
+        arr[0].push(this.projections.cFromWGS84([longitude, latitude]))
+        this.feature.getGeometry().setCoordinates(arr);
+        _javaConnector.debug("added coordinate" + this.feature.getGeometry().getCoordinates());
+    }else if(this.feature.getGeometry().getType() === "LineString"){
+        _javaConnector.debug("adding coordinate L" + this.feature.getGeometry().getCoordinates());
+        let arr = this.feature.getGeometry().getCoordinates();
+        arr.push(this.projections.cFromWGS84([longitude, latitude]))
+        this.feature.getGeometry().setCoordinates(arr);
+        _javaConnector.debug("added coordinate L" + this.feature.getGeometry().getCoordinates());
+
+    }
 };
+
+
+
+
+CoordinateLine.prototype.size = function () {
+    return this.getCoordinates().length;
+};
+
+CoordinateLine.prototype.getCoordinateLongitude = function (i) {
+    return this.projections.cToWGS84(this.getCoordinates(false)[i])[0];
+};
+
+CoordinateLine.prototype.getCoordinateLatitude = function (i) {
+    return this.projections.cToWGS84(this.getCoordinates(false)[i])[1];
+};
+
+CoordinateLine.prototype.setName = function(name){this.name = name;};
+
+/**
+ * finishes construction of the object and builds the OL Feature based in the coordinates that were set.
+ */
+
+CoordinateLine.prototype.setStyleByPath = function(stylePath){
+    import(stylePath).then(style =>{
+        this.feature.setStyle(style.default["standard"]);
+        this.feature.selectedStyle = style.default["selected"];
+    }, reason => _javaConnector.debug("setting Style failed, reason:" + reason));
+};
+
+CoordinateLine.prototype.setStyle = function(style) {
+    _javaConnector.debug("STYLE CHANGED IN JS:");
+    _javaConnector.debug(JSON.stringify(style));
+    this.feature.setStyle(style);
+};
+
+CoordinateLine.prototype.setSelectedStyle = function(style) {
+    this.feature.selectedStyle = style;
+};
+
+
+
+CoordinateLine.prototype.setSelectable = function(selectable){
+    this.feature.selectable = selectable;
+};
+
+
 
 
 /**
@@ -187,29 +217,12 @@ CoordinateLine.prototype.getOnMap = function () {
     return this.onMap;
 };
 
-/**
- * sets the color of the line.
- *
- * @param {number} red 0..255
- * @param {number} green 0..255
- * @param {number} blue 0..255
- * @param {number} alpha 0..1
- */
-CoordinateLine.prototype.setColor = function (red, green, blue, alpha) {
-    this.color = [red, green, blue, alpha];
+
+
+CoordinateLine.prototype.drawShape = function (type){
+
 };
 
-/**
- * sets the fill color of the line.
- *
- * @param {number} red 0..255
- * @param {number} green 0..255
- * @param {number} blue 0..255
- * @param {number} alpha 0..1
- */
-CoordinateLine.prototype.setFillColor = function (red, green, blue, alpha) {
-    this.fillColor = [red, green, blue, alpha];
-};
 
 /**
  * sets the width of the line
@@ -231,11 +244,11 @@ CoordinateLine.prototype.setClosed = function (flag) {
 
 CoordinateLine.prototype.startUpdate= function(uniqueID){
     this.updateCoordinateTable[uniqueID] = [];
-}
+};
 
 CoordinateLine.prototype.addCoordinate2 = function(latitude, longitude, uniqueID){
     this.updateCoordinateTable[uniqueID].push(this.projections.cFromWGS84([longitude, latitude]));
-}
+};
 
 CoordinateLine.prototype.commitUpdate = function(uniqueID){
     _javaConnector.debug("last");
@@ -246,6 +259,11 @@ CoordinateLine.prototype.commitUpdate = function(uniqueID){
     delete this.updateCoordinateTable[uniqueID];
     _javaConnector.debug(this.coordinates);
     //const type = this.feature.getGeometry().getType();
-    //TODO: LINESTRING
-    this.feature.getGeometry().setCoordinates([this.coordinates]);
-}
+    if(this.feature.getGeometry().getType() === "Polygon"){
+        _javaConnector.debug("POLYGON");
+        this.feature.getGeometry().setCoordinates([this.coordinates]);
+    }else if(this.feature.getGeometry().getType() === "LineString"){
+        _javaConnector.debug("LINESTRING");
+        this.feature.getGeometry().setCoordinates(this.coordinates);
+    }
+};

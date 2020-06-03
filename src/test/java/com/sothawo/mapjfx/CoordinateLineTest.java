@@ -30,44 +30,15 @@ import static org.assertj.core.api.Assertions.*;
  */
 public class CoordinateLineTest implements TestBase {
 
-    @Test
-    public void colorCanBeSet() throws Exception {
-        final CoordinateLine coordinateLine = new CoordinateLine();
-        coordinateLine.setColor(Color.BISQUE);
-        assertThat(coordinateLine.getColor()).isEqualTo(Color.BISQUE);
-    }
 
-    @Test
-    public void fillColorCanBeSet() throws Exception {
-        final CoordinateLine coordinateLine = new CoordinateLine();
-        coordinateLine.setFillColor(Color.CORNSILK);
-        assertThat(coordinateLine.getFillColor()).isEqualTo(Color.CORNSILK);
-    }
 
-    @Test
-    public void defaultColorIsSet() throws Exception {
-        assertThat(new CoordinateLine().getColor()).isEqualTo(CoordinateLine.DEFAULT_COLOR);
-    }
 
-    @Test
-    public void defaultFillColorIsSet() throws Exception {
-        assertThat(new CoordinateLine().getFillColor()).isEqualTo(CoordinateLine.DEFAULT_FILL_COLOR);
-    }
 
     @Test
     public void defaultVisibilityIsFalse() throws Exception {
         assertThat(new CoordinateLine().getVisible()).isFalse();
     }
 
-    @Test
-    public void defaultWidthIsSet() throws Exception {
-        assertThat(new CoordinateLine().getWidth()).isEqualTo(CoordinateLine.DEFAULT_WIDTH);
-    }
-
-    @Test
-    public void defaultIsNotClosed() {
-        assertThat(new CoordinateLine().isClosed()).isFalse();
-    }
 
     @Test
     public void noCoordinatesInCtorYieldsEmptyStream() throws Exception {
@@ -91,17 +62,5 @@ public class CoordinateLineTest implements TestBase {
         assertThat(coordinateLine.getVisible()).isTrue();
     }
 
-    @Test
-    public void widthCanBeSet() throws Exception {
-        final CoordinateLine coordinateLine = new CoordinateLine();
-        coordinateLine.setWidth(5);
-        assertThat(coordinateLine.getWidth()).isEqualTo(5);
-    }
 
-    @Test
-    public void closedFlagCanBeSet() {
-        final CoordinateLine coordinateLine = new CoordinateLine();
-        coordinateLine.setClosed(true);
-        assertThat(coordinateLine.isClosed()).isTrue();
-    }
 }

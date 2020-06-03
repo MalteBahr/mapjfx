@@ -162,6 +162,12 @@ Copyright 2015-2019 Peter-Josef Meisch (pj.meisch@sothawo.com)
         },
         fireModifyend: function (id) {
             console.log("modifyend on " + id);
+        },
+        newCoordinateLine(name) {
+            console.log("added new Coordinateline " + name);
+        },
+        fireSelectEvent: function(id) {
+            console.log("selected coordinateline");
         }
     };
 
@@ -200,7 +206,7 @@ Copyright 2015-2019 Peter-Josef Meisch (pj.meisch@sothawo.com)
     var addAll = function () {
         jsMapView.addMarker('castle-marker', './markers/blue_map_marker.png', 49.013517, 8.404435, -32, -64);
         jsMapView.addLabel('castle-label', 'Das Schloss', '', 49.013517, 8.404435, 0, 0);
-        var cl = jsMapView.getCoordinateLine('coli');
+        var cl = jsMapView.getCoordinateLine('coli', e.target.item(0));
         cl.addCoordinate(49.013517, 8.404435);
         cl.addCoordinate(49.015511, 8.323497);
         cl.addCoordinate(48.993284, 8.402186);

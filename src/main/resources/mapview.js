@@ -32,6 +32,8 @@ function JSMapView(javaConnector) {
     this.wmsParams = {};
     this.xyzParams = {};
     this.projections = new Projections();
+    this.ExampleModify = {};
+    this.snap = {};
 }
 
 JSMapView.prototype.toString = function () {
@@ -41,43 +43,14 @@ JSMapView.prototype.toString = function () {
 console.log = function(message) { _javaConnector.debug(message); };
 console.error = function(message) { _javaConnector.debug(message);};
 
+
 /**
  * initializes the JSMapView and the map.
  * @param config JSON string with configuraiton settings
  */
 
 JSMapView.prototype.init = function (config) {
-    var styles = [
-        /* We are using two different styles for the polygons:
-         *  - The first style is for the polygons themselves.
-         *  - The second style is to draw the vertices of the polygons.
-         *    In a custom `geometry` function the vertices of a polygon are
-         *    returned as `MultiPoint` geometry, which will be used to render
-         *    the style.
-         */
-        new ol.style.Style({
-            stroke: new ol.style.Stroke({
-                color: 'blue',
-                width: 3
-            }),
-            fill: new ol.style.Fill({
-                color: 'rgba(0, 0, 255, 0.1)'
-            })
-        }),
-        new ol.style.Style({
-            image: new ol.style.Circle({
-                radius: 5,
-                fill: new ol.style.Fill({
-                    color: 'red'
-                })
-            }),
-            geometry: function(feature) {
-                // return the coordinates of the first ring of the polygon
-                var coordinates = feature.getGeometry().getCoordinates()[0];
-                return new ol.geom.MultiPoint(coordinates);
-            }
-        })
-    ];
+
 
     var configuration = JSON.parse(config);
     console.log(config);
@@ -89,6 +62,8 @@ JSMapView.prototype.init = function (config) {
     this.sourceFeatures = new ol.source.Vector({
         features: []
     });
+
+
     // layer for the featuress
     this.layerFeatures = new ol.layer.Vector({
         source: this.sourceFeatures,
@@ -108,12 +83,14 @@ JSMapView.prototype.init = function (config) {
             zoom: configuration.showZoomControls
         }),
         interactions: ol.interaction.defaults({
-            doubleClickZoom: configuration.interactive,
+            doubleClickZoom: false ,
             dragPan: configuration.interactive,
             keyboardZoom: configuration.interactive,
             mouseWheelZoom: configuration.interactive
         })
     });
+
+
 
     var view = this.map.getView();
 
@@ -179,18 +156,22 @@ JSMapView.prototype.init = function (config) {
 
     var map = this.map;
     var coordinateLines = this.coordinateLines;
-    var ExampleModify = {
+    var blubb = this;
+    this.ExampleModify = {
         init: function() {
             this.select = new ol.interaction.Select({
-                condition: ol.events.condition.click
+                condition: ol.events.condition.click,
+                filter: function(feature, layer){
+                   return feature.selectable;
+                }
             });
             map.addInteraction(this.select);
-
             this.modify = new ol.interaction.Modify({
                 features: this.select.getFeatures(),
                 insertVertexCondition: ol.events.condition.never
             });
             map.addInteraction(this.modify);
+
 
 
 
@@ -207,16 +188,30 @@ JSMapView.prototype.init = function (config) {
             selectedFeatures.on('add', function(evt){
                 var feature = evt.target.item(0);
                 //_javaConnector.featureClicked();
-                feature.setStyle(styles);
-            });
+                    feature.setStyle(feature.selectedStyle);
+                    if(feature.getGeometry() instanceof ol.geom.Polygon || feature.getGeometry() instanceof ol.geom.LineString) {
+                        _javaConnector.fireSelectEvent(feature.getId(),true);
+                        _javaConnector.debug("selected feature");
 
+                    }
+
+            });
+            selectedFeatures.on('remove', function(evt){
+                var feature = evt.target.item(0);
+                //_javaConnector.featureClicked();
+                if(feature.getGeometry() instanceof ol.geom.Polygon || feature.getGeometry() instanceof ol.geom.LineString) {
+                    _javaConnector.fireSelectEvent(feature.getId(), false);
+                    _javaConnector.debug("unselected feature");
+                }
+            });
             this.modify.on('modifyend',function(e){
                 _javaConnector.debug("ModifyEnd EVENT <<<<<<<<<<");
                 var features = e.features.getArray();
+                _javaConnector.debug("getarray");
+
                 for (var i=0;i<features.length;i++) {
                     if(features[i].getGeometry() instanceof ol.geom.Polygon || features[i].getGeometry() instanceof ol.geom.LineString) {
-                        coordinateLines[features[i].getId()].setCoordinates(features[i].getGeometry().getCoordinates());
-                        _javaConnector.fireModifyend(features[i].getId());
+                        _javaConnector.fireModfifyend(features[i].getId());
                     }
                 }
             });
@@ -227,11 +222,28 @@ JSMapView.prototype.init = function (config) {
             this.modify.setActive(active);
         }
     };
-    ExampleModify.init();
-    var snap = new ol.interaction.Snap({
+    this.ExampleModify.init();
+    this.snap = new ol.interaction.Snap({
         source: this.sourceFeatures
     });
-    this.map.addInteraction(snap);
+    this.map.addInteraction(this.snap);
+    // this.featuresToAdd.on("addfeature", function(e){
+    //     let feature = e.feature;
+    //     let name = "coordinateLineJS-" + blubb.nextId++;
+    //     let coordinateLine = blubb.getCoordinateLine(name);
+    //     coordinateLine.feature = feature;
+    //     coordinateLine.seal(name);
+    //     coordinateLine.setOnMap(true);
+    //     blubb.featuresToAdd.removeFeature(feature);
+    //     blubb.sourceFeatures.addFeature(feature);
+    //     _javaConnector.newCoordinateLine(name);
+    //     _javaConnector.debug("ADDED FEATURE");
+    // });
+
+    // this.draw = new ol.interaction.Draw({
+    //     source: this.featuresToAdd,
+    //     type: "Polygon",
+    // });
     this.setMapType('OSM');
 };
 
@@ -295,9 +307,9 @@ JSMapView.prototype.setExtent = function (minLat, minLon, maxLat, maxLon, animat
     // lat/lon reversion
     var extent = this.projections.eFromWGS84([minLon, minLat, maxLon, maxLat]);
     if (animationDuration > 1) {
-        view.fit(extent, {duration: animationDuration});
+        view.fit(extent, {duration: animationDuration, padding: [20,20,20,20]});
     } else {
-        view.fit(extent);
+        view.fit(extent, {padding:[20,20,20,20]});
     }
 };
 
@@ -489,19 +501,58 @@ JSMapView.prototype.setMapType = function (newType) {
  *
  * @param {string} name the name of the coordinateLine
  *
+ * @param {string} geometryType
+ * @param feature Optional if feature already exists(drawn)
  * @return {CoordinateLine} the object
  */
-JSMapView.prototype.getCoordinateLine = function (name) {
+JSMapView.prototype.getCoordinateLine = function (name, geometryType) {
     var coordinateLine = this.coordinateLines[name];
     if (!coordinateLine) {
-        coordinateLine = new CoordinateLine(this.projections);
+        let feature;
+        if (geometryType === "Polygon") {
+            feature = new ol.Feature(new ol.geom.Polygon([[]]));
+        } else if (geometryType === "LineString") {
+            feature = new ol.Feature(new ol.geom.LineString([]));
+        }else{
+            _javaConnector.debug("ERROR no feature created because geometrytype wrong");
+        }
+
+        coordinateLine = new CoordinateLine(this.projections, geometryType, name, feature);
         this.coordinateLines[name] = coordinateLine;
-        //TODO: changelistener for coordinateLine with 'name'!
         this.javaConnector.debug("created CoordinateLine object named " + name);
     }
     return coordinateLine;
 };
 
+JSMapView.prototype.drawCoordinateLine = function(name, geometryType){
+
+    let coordinateLine = this.getCoordinateLine(name,geometryType);
+
+
+    let featuresToAdd = new ol.source.Vector({
+        features: [],
+    });
+    let draw = new ol.interaction.Draw({
+        source: featuresToAdd,
+        type: geometryType,
+    });
+
+// remove from map
+    _jsMapView.ExampleModify.setActive(false);
+    _jsMapView.map.removeInteraction(_jsMapView.snap);
+    _jsMapView.map.addInteraction(draw);
+    _jsMapView.map.addInteraction(_jsMapView.snap);
+    featuresToAdd.on("addfeature", function (e) {
+        _javaConnector.debug("added feature in addfeature");
+        _javaConnector.debug("coordinates:" + e.feature.getGeometry().getCoordinates());
+        coordinateLine.getFeature().setGeometry(e.feature.getGeometry());
+        _javaConnector.seal(name);
+
+        _jsMapView.map.removeInteraction(draw);
+        _jsMapView.ExampleModify.setActive(true);
+    });
+    return coordinateLine;
+};
 
 /**
  * shows a coordinateLine.
@@ -513,6 +564,7 @@ JSMapView.prototype.showCoordinateLine = function (name) {
     var coordinateLine = this.coordinateLines[name];
     if (coordinateLine && !coordinateLine.getOnMap()) {
         this.sourceFeatures.addFeature(coordinateLine.getFeature());
+        this.javaConnector.debug("coordiantes: " + coordinateLine.getFeature().getGeometry().getCoordinates());
         this.javaConnector.debug("showed CoordinateLine object named " + name);
         coordinateLine.setOnMap(true);
     }
@@ -861,6 +913,24 @@ JSMapView.prototype.reportExtent = function () {
         // ignore
     }
 };
+//
+// JSMapView.prototype.setDrawInteraction = function (b) {
+//     _javaConnector.debug("AAAA" + b);
+//     if(b) {
+//         if (!this.map.getInteractions().getArray().includes(this.draw)) {
+//             this.draw_bool = true;
+//             this.map.addInteraction(this.draw);
+//             this.map.removeInteraction(this.ExampleModify.select);
+//             //document.body.style.cursor = "pointer";
+//         }
+//     } else{
+//         this.draw_bool = false;
+//         this.map.removeInteraction(this.draw);
+//         this.map.addInteraction(this.ExampleModify.select);
+//        // document.body.style.cursor = "";
+//     }
+// };
+
 
 var _jsMapView;
 
