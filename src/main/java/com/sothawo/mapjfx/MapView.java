@@ -1500,7 +1500,12 @@ public final class MapView extends Region implements AutoCloseable {
             System.out.println("new coordinateline in JS " + id);
             if(toCreateFromJS!=null && toCreateFromJS.getId().equals(id)){
                 System.out.println("notifying listeners");
-                notifyListeners(toCreateFromJS);
+                try{
+                    notifyListeners(toCreateFromJS);
+                } catch (Exception e){
+                    e.printStackTrace();
+                }
+
             }
             toCreateFromJS = null;
             System.out.println("finished seal");

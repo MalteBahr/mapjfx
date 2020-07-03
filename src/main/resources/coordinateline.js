@@ -130,17 +130,17 @@ CoordinateLine.prototype.addCoordinate = function (latitude, longitude) {
     // lat/lon reversion
 
     if(this.feature.getGeometry().getType() === "Polygon"){
-        _javaConnector.debug("adding coordinate" + this.feature.getGeometry().getCoordinates());
+        // _javaConnector.debug("adding coordinate" + this.feature.getGeometry().getCoordinates());
         let arr = this.feature.getGeometry().getCoordinates();
         arr[0].push(this.projections.cFromWGS84([longitude, latitude]))
         this.feature.getGeometry().setCoordinates(arr);
-        _javaConnector.debug("added coordinate" + this.feature.getGeometry().getCoordinates());
+        // _javaConnector.debug("added coordinate" + this.feature.getGeometry().getCoordinates());
     }else if(this.feature.getGeometry().getType() === "LineString"){
-        _javaConnector.debug("adding coordinate L" + this.feature.getGeometry().getCoordinates());
+        // _javaConnector.debug("adding coordinate L" + this.feature.getGeometry().getCoordinates());
         let arr = this.feature.getGeometry().getCoordinates();
         arr.push(this.projections.cFromWGS84([longitude, latitude]))
         this.feature.getGeometry().setCoordinates(arr);
-        _javaConnector.debug("added coordinate L" + this.feature.getGeometry().getCoordinates());
+        // _javaConnector.debug("added coordinate L" + this.feature.getGeometry().getCoordinates());
 
     }
 };
