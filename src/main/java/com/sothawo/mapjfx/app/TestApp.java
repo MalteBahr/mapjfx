@@ -148,12 +148,12 @@ public class TestApp extends Application {
         mapView.addEventHandler(MapViewEvent.MAP_CLICKED, event -> {
             logger.info("MAP_CLICKED event at {}", event.getCoordinate().normalize());
             event.consume();
-            if (marker.getVisible()) {
-                marker.setPosition(event.getCoordinate());
-            }
-            if (mapLabel.getVisible()) {
-                mapLabel.setPosition(event.getCoordinate());
-            }
+//            if (marker.getVisible()) {
+//                marker.setPosition(event.getCoordinate());
+//            }
+//            if (mapLabel.getVisible()) {
+//                mapLabel.setPosition(event.getCoordinate());
+//            }
         });
 
         // listen to MapViewEvent MAP_RIGHTCLICKED

@@ -34,6 +34,7 @@ function JSMapView(javaConnector) {
     this.projections = new Projections();
     this.ExampleModify = {};
     this.snap = {};
+    this.popup = {}
 }
 
 JSMapView.prototype.toString = function () {
@@ -101,6 +102,8 @@ JSMapView.prototype.init = function (config) {
             // lat/lon reversion
             this.javaConnector.pointerMovedTo(coordinate[1], coordinate[0]);
         }).bind(this));
+
+
 
     this.map.on('singleclick',
         (function (evt) {
@@ -227,6 +230,15 @@ JSMapView.prototype.init = function (config) {
         source: this.sourceFeatures
     });
     this.map.addInteraction(this.snap);
+
+    this.popup = new ol.Overlay({
+        element: document.getElementById("popup"),
+        positioning: "bottom-center",
+        stopEvent: false,
+        offset: [0, -50]
+    });
+    map.addOverlay(this.popup);
+
     // this.featuresToAdd.on("addfeature", function(e){
     //     let feature = e.feature;
     //     let name = "coordinateLineJS-" + blubb.nextId++;
@@ -598,6 +610,22 @@ JSMapView.prototype.removeCoordinateLine = function (name) {
         this.javaConnector.debug("deleted CoordinateLine object named " + name);
     }
 };
+
+function createPopup(evt) {
+    _javaConnector.debug("trying to create popup at");
+    var coordinates = this.map.getEventCoordinate(evt);
+    _javaConnector.debug(coordinates)
+    this.popup.setPosition(coordinates);
+    $("#popup").popover({
+        sanitize: false,
+        container: "body",
+        placement: "right",
+        html: true,
+        title: "hallo",
+        content: $("#popoverContent").html()
+    });
+    $("#popup").popover("show");
+}
 
 /**
  * adds a marker to the map
